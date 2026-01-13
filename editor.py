@@ -33,7 +33,7 @@ def main(stdscr):
     args = parser.parse_args()
 
     with open(args.filename) as f:
-        buffer = Buffer(f.read().splitlines())
+        buffer = Buffer(f.read().splitlines(), args.filename)
 
     window = Window(curses.LINES - 1, curses.COLS - 1)
     cursor = Cursor()
@@ -49,24 +49,38 @@ def main(stdscr):
         stdscr.move(*window.translate(cursor))
 
         k = stdscr.getkey()
-        if k == "q":
+        if k == "\x11":  # Ctrl-q
             sys.exit(0)
-        elif k == "KEY_UP":
+        elif k in ("KEY_UP", "\x10"):  # Arrow up or Ctrl-p
             cursor.up(buffer)
             window.up(cursor)
             window.horizontal_scroll(cursor)
-        elif k == "KEY_DOWN":
+        elif k in ("KEY_DOWN", "\x0e"):  # Arrow down or Ctrl-n
             cursor.down(buffer)
             window.down(buffer, cursor)
             window.horizontal_scroll(cursor)
-        elif k == "KEY_LEFT":
+        elif k in ("KEY_LEFT", "\x02"):  # Arrow left or Ctrl-b
             left(window, buffer, cursor)
-        elif k == "KEY_RIGHT":
+        elif k in ("KEY_RIGHT", "\x06"):  # Arrow right or Ctrl-f
             right(window, buffer, cursor)
+        elif k == "\x01":  # Ctrl-a (beginning of line)
+            cursor.beginning_of_line()
+            window.horizontal_scroll(cursor)
+        elif k == "\x05":  # Ctrl-e (end of line)
+            cursor.end_of_line(buffer)
+            window.horizontal_scroll(cursor)
+        elif k == "\x13":  # Ctrl-s (save)
+            buffer.save()
+        elif k == "KEY_PPAGE":  # Page Up
+            window.page_up(buffer, cursor)
+            window.horizontal_scroll(cursor)
+        elif k == "KEY_NPAGE":  # Page Down
+            window.page_down(buffer, cursor)
+            window.horizontal_scroll(cursor)
         elif k == "\n":
             buffer.split(cursor)
             right(window, buffer, cursor)
-        elif k in ("KEY_DELETE", "\x04"):
+        elif k in ("KEY_DELETE", "\x04"):  # Delete or Ctrl-d
             buffer.delete(cursor)
         elif k in ("KEY_BACKSPACE", "\x7f"):
             if (cursor.row, cursor.col) > (0, 0):
@@ -79,8 +93,9 @@ def main(stdscr):
 
 
 class Buffer:
-    def __init__(self, lines):
+    def __init__(self, lines, filename=None):
         self.lines = lines
+        self.filename = filename
 
     def __len__(self):
         return len(self.lines)
@@ -116,6 +131,13 @@ class Buffer:
                 new = current + next
                 self.lines.insert(row, new)
 
+    def save(self):
+        if self.filename:
+            with open(self.filename, 'w') as f:
+                f.write('\n'.join(self.lines))
+                if self.lines:
+                    f.write('\n')
+
 
 class Window:
     def __init__(self, nrows, ncols, row=0, col=0):
@@ -143,6 +165,22 @@ class Window:
     def horizontal_scroll(self, cursor, left_margin=5, right_margin=2):
         n_pages = cursor.col // (self.ncols - right_margin)
         self.col = max(n_pages * self.ncols - right_margin - left_margin, 0)
+
+    def page_up(self, buffer, cursor):
+        # Move cursor up by one page
+        cursor.row = max(0, cursor.row - self.nrows)
+        cursor._clamp_col(buffer)
+        # Adjust window if needed
+        if cursor.row < self.row:
+            self.row = max(0, self.row - self.nrows)
+
+    def page_down(self, buffer, cursor):
+        # Move cursor down by one page
+        cursor.row = min(buffer.bottom, cursor.row + self.nrows)
+        cursor._clamp_col(buffer)
+        # Adjust window if needed
+        if cursor.row > self.bottom:
+            self.row = min(buffer.bottom - self.nrows + 1, self.row + self.nrows)
 
 
 class Cursor:
@@ -184,6 +222,12 @@ class Cursor:
         elif self.row < buffer.bottom:
             self.row += 1
             self.col = 0
+
+    def beginning_of_line(self):
+        self.col = 0
+
+    def end_of_line(self, buffer):
+        self.col = len(buffer[self.row])
 
     def _clamp_col(self, buffer):
         self._col = min(self._col_hint, len(buffer[self.row]))
