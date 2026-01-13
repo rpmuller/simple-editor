@@ -2,19 +2,6 @@ import curses
 import sys
 import argparse
 
-# TODO:
-# Remap cursor movement to Ctrl-p (up), Ctrl-n (down), Ctrl-b (left), and Ctrl-f (right).
-#    Also emacs commands Ctrl-a, Ctrl-e, Ctrl-d (delte)
-#    Remap q to Ctrl-q or Command-q
-# Add page up and page down commands.
-# Add a command to save the buffer to a file.
-# Rewrite horizontal scrolling to move the entire window rather than only the current line.
-# Add a status line to the bottom of the window that displays the name of the file being edited and the current cursor position.
-# Add commands to move one word left or right.
-# If the buffer is modified and not yet saved, print a message in the status line and don’t let the user exit. Add a force exit command as well.
-# Rewrite the application so that there’s no mutable state. I’ve found dataclasses with the dataclass.replace function a convenient way to write applications around immutable objects.
-
-
 def right(window, buffer, cursor):
     cursor.right(buffer)
     window.down(buffer, cursor)
